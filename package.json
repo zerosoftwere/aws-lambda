@@ -1,0 +1,13 @@
+{
+  "name": "inspiration-node",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {
+    "@sendgrid/mail": "^7.7.0",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.245.0",
+    "@aws-sdk/lib-dynamodb": "^3.245.0"
+  }
+}

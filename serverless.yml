@@ -1,0 +1,114 @@
+service: inspiration-node
+frameworkVersion: '3'
+
+custom:
+  region: ${self:provider.region}
+  tableName: 'users-table-${sls:stage}'
+  bucketName: 'storage.xerosoft.net'
+
+provider:
+  name: aws
+  region: us-east-1
+  runtime: nodejs18.x
+  stage: dev
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - Fn::GetAtt: [ UsersTable, Arn ]
+    - Effect: Allow
+      Action: "s3:*"
+      Resource: !Sub ${QuotesBucket.Arn}/*
+    - Effect: Allow
+      Action: 
+      - "sns:Publish"
+      Resource: !Ref QuotesMessages
+  environment:
+    USERS_TABLE: ${self:custom.tableName}
+    QUOTES_BUCKET: ${self:custom.bucketName}
+    REGION: ${self:provider.region}
+    SNS_TOPIC_ARN: !Ref QuotesMessages
+    SENDGRID_API_KEY: ${env:SENDGRID_API_KEY}
+
+functions:
+  quotes:
+    handler: handler.getQuotes
+    events:
+      - http:
+          method: GET
+          path: quotes
+          cors: true
+  subscribe:
+    handler: handler.subscribeUser
+    events:
+      - http:
+          method: POST
+          path: subscribe
+          cors: true
+  feedback:
+    handler: handler.staticMailer
+    events:
+      - http:
+          method: POST
+          path: feedback
+          cors: true
+  sendEmail:
+    handler: handler.sendEmail
+    events:
+      - http:
+          method: POST
+          path: sendemail
+          cors: true
+      - schedule: cron(0 13 * * ? *)
+  subscribers:
+    handler: handler.getSubscribers
+    events:
+      - http:
+          method: GET
+          path: subcribers
+          cors: true
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TableName: ${self:custom.tableName}
+    QuotesBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
+    QuotesMessages:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: quotes-messages-${self:provider.stage}
+    QuotesMessagesSubscription:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: !Ref QuotesMessages
+        Protocol: email
+        Endpoint: zerosoftwere@gmail.com
+        DeliveryPolicy: 
+          healthyRetryPolicy:
+            numRetries: 20
+            minDelayTarget: 30
+            maxDelayTarget: 600
+            backoffFunction: exponential
+package:
+  excludeDevDependencies: true
+  exclude:
+    - "frontend/**"
+    - "quotes.json"
